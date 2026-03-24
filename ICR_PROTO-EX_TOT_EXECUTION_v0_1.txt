@@ -1,0 +1,236 @@
+╔══════════════════════════════════════════════════════╗
+║           ICR — PROTO-EX: TOT EXECUTION              ║
+║                      v0.1                            ║
+╚══════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROTOCOL IDENTITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ID           : PROTO-EX
+NAME         : TOT Execution
+VERSION      : 0.1
+SPLIT        : 4 messages
+TRIGGER      : User dispatches task to execution chat
+AUDIT MODE   : PASSIVE (msgs 1-3) → ACTIVE (msg 4)
+CHAIN        : none by default
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROUTER REGISTRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROTO ID     : PROTO-EX
+SEQ TOTAL    : 4
+STATE MAP:
+  MSG 1      → EXECUTING   | audit: PASSIVE
+  MSG 2      → EXECUTING   | audit: PASSIVE
+  MSG 3      → EXECUTING   | audit: PASSIVE
+  MSG 4      → WAITING_AUDIT | audit: ACTIVE
+ADVANCE      : MANUAL — user sends "next" or selection
+UNIT_ID FMT  : EX-<index>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUDIT INTERRUPT CONDITIONS (PASSIVE PHASE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Audit breaks passive silence only on:
+  • Branch count != 3 in MSG 1
+  • Branch A/B/C structure missing or malformed in MSG 2
+  • Grading axes incomplete or missing in MSG 3
+  • Logic contradiction detected across messages
+  • OS format violation (state header malformed)
+Interrupt target: USER (not execution directly)
+Interrupt format: [AUDIT INTERRUPT | UNIT: <id> | MSG: <n> | FLAG: <reason>]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MSG 1 — PLAN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER      : Task dispatched by user
+STATE HEADER : [STATE: EXECUTING | PROTO: PROTO-EX | SEQ: 1/4 | SYNC: <status>]
+
+EXECUTION:
+  1. Parse task — extract goal, constraints, requirements
+  2. Generate 3 distinct branches:
+     Each branch contains:
+       • BRANCH ID    : A | B | C
+       • APPROACH     : what strategic angle this takes
+       • LOGIC        : how it solves the task step by step
+       • REQUIREMENTS : what it needs to execute
+       • TRADEOFFS    : what it gains and what it costs
+       • BEST FOR     : what conditions make this branch optimal
+  3. Branches must be meaningfully distinct —
+     not variations of the same approach
+
+OUTPUT FORMAT:
+  ┌─ TASK ──────────────────────────────────────────┐
+  │ <parsed task statement>                          │
+  │ GOAL: <goal>                                     │
+  │ CONSTRAINTS: <list>                              │
+  └──────────────────────────────────────────────────┘
+
+  BRANCH A — <name>
+    APPROACH     : ...
+    LOGIC        : ...
+    REQUIREMENTS : ...
+    TRADEOFFS    : ...
+    BEST FOR     : ...
+
+  BRANCH B — <name>
+    APPROACH     : ...
+    LOGIC        : ...
+    REQUIREMENTS : ...
+    TRADEOFFS    : ...
+    BEST FOR     : ...
+
+  BRANCH C — <name>
+    APPROACH     : ...
+    LOGIC        : ...
+    REQUIREMENTS : ...
+    TRADEOFFS    : ...
+    BEST FOR     : ...
+
+  ─────────────────────────────────────────────────
+  awaiting → [next]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MSG 2 — BUILD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER      : User sends "next"
+STATE HEADER : [STATE: EXECUTING | PROTO: PROTO-EX | SEQ: 2/4 | SYNC: <status>]
+
+EXECUTION:
+  Build all 3 branches to full depth
+  Each branch is self-contained — no cross-referencing during build
+  Build fidelity: treat each as if it were the chosen solution
+
+OUTPUT FORMAT:
+
+  ══ BRANCH A — <name> ══════════════════════════════
+
+  <full build of branch A>
+  Step by step execution, decisions, outputs
+
+  ══ BRANCH B — <name> ══════════════════════════════
+
+  <full build of branch B>
+
+  ══ BRANCH C — <name> ══════════════════════════════
+
+  <full build of branch C>
+
+  ─────────────────────────────────────────────────
+  awaiting → [next]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MSG 3 — EVALUATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER      : User sends "next"
+STATE HEADER : [STATE: EXECUTING | PROTO: PROTO-EX | SEQ: 3/4 | SYNC: <status>]
+
+GRADING AXES (applied to each branch):
+  • FEASIBILITY      : can it actually be executed given constraints
+  • GOAL ALIGNMENT   : how well it satisfies the task goal
+  • COMPLEXITY       : execution cost and overhead
+  • CONSTRAINT FIT   : adherence to stated requirements
+  • OS MATCH         : compatibility with ICR runtime and format rules
+
+GRADING SCALE: 1-5 per axis
+
+EXECUTION:
+  1. Grade each branch on all 5 axes
+  2. Dissect strengths and weaknesses per branch
+  3. Identify standout features per branch
+     (things the other branches don't have)
+  4. Select recommended branch based on highest
+     weighted score — GOAL ALIGNMENT and OS MATCH
+     weighted x2
+  5. Surface options to user
+
+OUTPUT FORMAT:
+
+  ── BRANCH A — <name> ──────────────────────────────
+  FEASIBILITY    : [n/5] — <reason>
+  GOAL ALIGNMENT : [n/5] — <reason>
+  COMPLEXITY     : [n/5] — <reason>
+  CONSTRAINT FIT : [n/5] — <reason>
+  OS MATCH       : [n/5] — <reason>
+  TOTAL          : [weighted score]
+  STANDOUT       : <what only this branch has>
+  VERDICT        : <1-line summary>
+
+  ── BRANCH B — <name> ──────────────────────────────
+  [same structure]
+
+  ── BRANCH C — <name> ──────────────────────────────
+  [same structure]
+
+  ─────────────────────────────────────────────────
+  RECOMMENDED    : Branch <X> — <one line rationale>
+  ─────────────────────────────────────────────────
+  awaiting → [confirm <X>] [select A] [select B] [select C]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MSG 4 — REFINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER      : User confirms or selects branch
+STATE HEADER : [STATE: EXECUTING | PROTO: PROTO-EX | SEQ: 4/4 | SYNC: <status>]
+
+EXECUTION:
+  1. Take selected branch as primary
+  2. Refine it — tighten logic, resolve any gaps from build
+  3. Cross-branch feature scan:
+     For each standout feature from non-selected branches:
+       • Assess compatibility with selected branch
+       • Assess execution cost of adding it
+       • RECOMMEND if: compatible + low-medium cost
+       • DISCARD if: conflicts or high cost
+  4. Output refined solution + recommendations
+  5. Close unit — emit completion signal to audit
+
+OUTPUT FORMAT:
+
+  SELECTED       : Branch <X> — <name>
+  ══ REFINED SOLUTION ════════════════════════════════
+
+  <refined full output of selected branch>
+
+  ══ CROSS-BRANCH RECOMMENDATIONS ════════════════════
+  FROM BRANCH <Y>:
+    FEATURE  : <standout feature>
+    COMPAT   : YES / PARTIAL / NO
+    COST     : LOW / MEDIUM / HIGH
+    VERDICT  : RECOMMEND / DISCARD — <reason>
+
+  FROM BRANCH <Z>:
+    [same structure]
+
+  ══ UNIT CLOSED ═════════════════════════════════════
+  UNIT: <id> | SEQ: 4/4 | STATUS: COMPLETE
+  → forwarded to audit
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUDIT ACTIVE PHASE (post MSG 4)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Audit receives full unit (msgs 1-4)
+Audit checks:
+  • Branches were distinct in MSG 1
+  • All 3 built in MSG 2
+  • All 5 axes graded in MSG 3
+  • Selected branch refined in MSG 4
+  • Cross-branch scan complete
+  • No logic contradiction across unit
+  • Word count delta within 5% of execution count
+
+Audit output:
+  GO      → unit closed, execution → STANDBY
+  CORRECT → specific correction target sent to execution
+            execution patches → re-emits to audit
+            audit re-reviews → GO or CORRECT again
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROTOCOL READY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGISTERED    : PROTO-EX v0.1
+SPLIT         : 4 | MANUAL ADVANCE
+AUDIT         : PASSIVE → ACTIVE
+STATUS        : PENDING index registration
+
+[MSG_WORDS: 628 | TOTAL: <carry from last> | SYNC: CLEAR]
+[UNIT: — | CHAIN: NO | CHAIN_POS: — | SEQ: —]

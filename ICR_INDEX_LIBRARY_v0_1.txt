@@ -1,0 +1,82 @@
+╔══════════════════════════════════════════════════════╗
+║              ICR — INDEX LIBRARY                     ║
+║                    v0.1                              ║
+╚══════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — COMPONENT REGISTRY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ID          NAME            TYPE        VERSION     STATUS
+SYS1        Boot            SYSTEM      0.1         ACTIVE
+RTR         Router          SYSTEM      0.1         ACTIVE
+PROTO-EX    Execution       PROTOCOL    —           PENDING
+PROTO-AU-EX Audit           PROTOCOL    —           PENDING
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — LINGUISTIC CODE MAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FORMAT: SOURCE → TARGET : WHAT IS PASSED : CONDITION
+
+SYS1        → RTR        : BOOT signal, sync state         : on INIT
+SYS1        → ALL        : STATE header format             : every message
+SYS1        → ALL        : SYNC status                     : every message
+RTR         → PROTO-EX   : UNIT_ID, SEQ, PROTO             : on dispatch
+RTR         → PROTO-AU-EX : UNIT_ID, completion signal      : on SEQ N/N
+PROTO-EX    → RTR        : SEQ completion, stage output    : on each part
+PROTO-AU-EX → RTR        : PASS / FAIL / FLAG              : on unit review
+PROTO-AU-EX → SYS1       : authoritative word count        : every message
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — LINE REFERENCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Maps specific rules to where they are defined and
+where they are consumed.
+
+REF-001
+  RULE        : SYNC executes only at clean boundary
+  DEFINED IN  : SYS1 → SYNC GOVERNANCE
+  CONSUMED BY : RTR → TRANSITION RULES (ANY → STANDBY)
+  PATCH       : —
+
+REF-002
+  RULE        : Word count threshold 110,000
+  DEFINED IN  : SYS1 → WORD COUNT TRACKING
+  CONSUMED BY : PROTO-AU-EX (authoritative count)
+  PATCH       : —
+
+REF-003
+  RULE        : Split decision per protocol
+  DEFINED IN  : RTR → DISPATCH → SPLIT DECISION RULE
+  CONSUMED BY : PROTO-EX (defines own split count)
+  PATCH       : —
+
+REF-004
+  RULE        : Chain break on audit FAIL
+  DEFINED IN  : RTR → CHAIN BREAK CONDITIONS
+  CONSUMED BY : PROTO-AU-EX (output signal triggers break)
+  PATCH       : —
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — PATCHNOTE INDEX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FORMAT: PATCH-ID | DATE | COMPONENT | CHANGE | REASON
+
+PATCH-001 | 2026-03-01 | SYS1,RTR     | Initial build | Bootstrap
+PATCH-002 | 2026-03-01 | SYS1         | STATE enum expanded: added WAITING_USER, BLOCKED, AUDITING; scope note added (canonical across all chats) | Fix 1 — Option A
+PATCH-003 | 2026-03-01 | SYS1         | SEQ values generalised to <part>/<total> with examples 1/3, 1/4 | Fix 2 — SEQ definition conflict
+PATCH-004 | 2026-03-01 | INDEX        | PROTO-AU renamed to PROTO-AU-EX throughout (registry, code map, line refs) | ID mismatch fix
+PATCH-005 | 2026-03-01 | SYS1         | Scope clarification note added under PAIR in RUNTIME IDENTITY | F-04
+PATCH-006 | 2026-03-01 | ROUTER       | Transition table GO/chain path fixed: WAITING_AUDIT→CHAINING (CHAIN_ACTIVE=YES) / WAITING_AUDIT→STANDBY (CHAIN_ACTIVE=NO) | F-02
+PATCH-007 | 2026-03-01 | ROUTER       | UNIT_ID generic form replaced with prefix-based definition | F-03
+PATCH-008 | 2026-03-01 | PROTO-EX     | Duplicate REQUIREMENTS key removed from Branch C output format in MSG 1 | F-01
+PATCH-009 | 2026-03-01 | PROTO-AU-EX  | CHK-07 label aligned to RECEIVE template: execution-reported vs audit-counted | F-06
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INDEX READY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMPONENTS   : 4 registered (2 active, 2 pending)
+LINE REFS    : 4
+PATCHES      : 9
+
+[MSG_WORDS: 312 | TOTAL: 840 | SYNC: CLEAR]
+[UNIT: — | CHAIN: NO | CHAIN_POS: — | SEQ: —]
