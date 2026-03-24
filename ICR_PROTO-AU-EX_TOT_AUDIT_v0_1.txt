@@ -1,0 +1,299 @@
+╔══════════════════════════════════════════════════════╗
+║         ICR — PROTO-AU-EX: TOT AUDIT                 ║
+║                      v0.1                            ║
+╚══════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROTOCOL IDENTITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ID           : PROTO-AU-EX
+NAME         : TOT Audit
+VERSION      : 0.1
+SPLIT        : 3 messages
+TRIGGER      : RTR emits completion signal (PROTO-EX SEQ 4/4)
+AUDIT MODE   : PASSIVE (PROTO-EX msgs 1-3) → ACTIVE (post msg 4)
+PAIR         : PROTO-EX (TOT Execution)
+RETRY        : User-invoked — no auto cap
+CHAIN        : none by default
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROUTER REGISTRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROTO ID     : PROTO-AU-EX
+SEQ TOTAL    : 3
+STATE MAP:
+  MSG 1      → AUDITING    | phase: RECEIVE
+  MSG 2      → AUDITING    | phase: ANALYZE
+  MSG 3      → AUDITING    | phase: VERDICT
+ADVANCE      : MANUAL — user sends "next"
+UNIT_ID FMT  : AU-<index> (mirrors EX-<index> being reviewed)
+OUTPUT TO    : RTR (PASS / FAIL / FLAG) | SYS1 (authoritative word count)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASSIVE INTERRUPT CONDITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Active during PROTO-EX msgs 1-3 only.
+Audit breaks passive silence ONLY on critical flags:
+
+  • Logic contradiction detected across PROTO-EX messages
+  • State header malformed (missing required fields or invalid values)
+
+Interrupt target : USER
+Interrupt format :
+  [AUDIT INTERRUPT | UNIT: <id> | MSG: <n> | FLAG: <reason>]
+
+All other anomalies held — surfaced during ANALYZE (MSG 2).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHECK REGISTRY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Seven checks applied during ANALYZE. Referenced by ID in all output.
+
+  CHK-01  : Branch distinctness          — PROTO-EX MSG 1
+  CHK-02  : All 3 branches built         — PROTO-EX MSG 2
+  CHK-03  : All 5 grading axes present   — PROTO-EX MSG 3
+  CHK-04  : Selected branch refined      — PROTO-EX MSG 4
+  CHK-05  : Cross-branch scan complete   — PROTO-EX MSG 4
+  CHK-06  : No logic contradiction       — across full unit
+  CHK-07  : Word count delta ≤ 5%        — execution-reported vs audit-counted
+
+RESULT VALUES : PASS | FLAG
+FLAG format   :
+  CHK-<id> | FLAG | SEQ: <target> | FINDING: <specific description>
+  ACTION: Re-execute SEQ <n> — <what must change>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PATCH LOOP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Triggered when VERDICT = CORRECT.
+
+LOOP SEQUENCE:
+  1. Audit emits CORRECT with flagged SEQ target(s) and ACTION
+  2. User reviews CORRECT output
+  3. User dispatches re-execution to PROTO-EX at flagged SEQ
+  4. PROTO-EX re-executes flagged SEQ — resubmits to audit
+  5. Audit re-enters at MSG 2 (ANALYZE) — not full re-receive
+     MSG 1 (RECEIVE) is not repeated unless structural integrity lost
+  6. Verdict re-issued at MSG 3
+  7. Loop continues until GO or user overrides
+
+RETRY CAP    : None — user-invoked
+USER OVERRIDE OPTIONS (surfaced at CORRECT):
+  [retry <SEQ>] [override — accept as-is] [break — terminate unit]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MSG 1 — RECEIVE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER      : RTR completion signal received (PROTO-EX SEQ 4/4)
+STATE HEADER : [STATE: AUDITING | PROTO: PROTO-AU-EX | SEQ: 1/3 | SYNC: <status>]
+
+EXECUTION:
+  1. Confirm unit received — UNIT_ID, SEQ count, all 4 messages present
+  2. Structural integrity check:
+       • All 4 SEQ headers present and well-formed
+       • STATE values correct per PROTO-EX state map
+       • PROTO field consistent across all messages
+       • No missing message in sequence
+  3. Log word counts per SEQ message
+  4. Surface intake summary — no analysis yet
+
+OUTPUT FORMAT:
+
+  ┌─ UNIT RECEIVED ────────────────────────────────────┐
+  │ UNIT_ID  : <id>                                    │
+  │ PROTO    : PROTO-EX                                │
+  │ SEQ      : 4/4 — all messages present              │
+  │ RECEIVED : <timestamp or index>                    │
+  └────────────────────────────────────────────────────┘
+
+  STRUCTURAL INTEGRITY
+  MSG 1  [STATE header] : VALID / MALFORMED — <detail if malformed>
+  MSG 2  [STATE header] : VALID / MALFORMED — <detail if malformed>
+  MSG 3  [STATE header] : VALID / MALFORMED — <detail if malformed>
+  MSG 4  [STATE header] : VALID / MALFORMED — <detail if malformed>
+
+  WORD COUNT LOG
+  MSG 1  : <n> words
+  MSG 2  : <n> words
+  MSG 3  : <n> words
+  MSG 4  : <n> words
+  UNIT TOTAL (execution-reported) : <n>
+  UNIT TOTAL (audit-counted)      : <n>
+  DELTA                           : <n> words / <pct>%
+
+  INTAKE STATUS : CLEAN / FLAGGED
+  <if FLAGGED: list structural issues found — held for ANALYZE>
+
+  ─────────────────────────────────────────────────────
+  awaiting → [next]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MSG 2 — ANALYZE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER      : User sends "next"
+STATE HEADER : [STATE: AUDITING | PROTO: PROTO-AU-EX | SEQ: 2/3 | SYNC: <status>]
+
+EXECUTION:
+  1. Run all 7 checks against unit
+  2. For each check: assign PASS or FLAG
+  3. FLAG entries must specify:
+       • Which SEQ message is the re-execution target
+       • Exact finding — what is wrong or missing
+       • Required action — what must change on re-execution
+  4. If re-entering after patch loop: note which checks are being
+     re-evaluated and which carry over from prior ANALYZE pass
+
+OUTPUT FORMAT:
+
+  ── CHECK RESULTS ───────────────────────────────────
+
+  CHK-01 | Branch distinctness | SEQ target: MSG 1
+  RESULT  : PASS / FLAG
+  FINDING : <what was assessed — pass confirms distinct approaches,
+             flag describes overlap or duplication>
+  <if FLAG>
+  ACTION  : Re-execute MSG 1 — <specific requirement>
+
+  CHK-02 | All 3 branches built | SEQ target: MSG 2
+  RESULT  : PASS / FLAG
+  FINDING : <confirms all 3 present and self-contained, or flags
+             which branch is missing / incomplete>
+  <if FLAG>
+  ACTION  : Re-execute MSG 2 — <specific requirement>
+
+  CHK-03 | All 5 grading axes present | SEQ target: MSG 3
+  RESULT  : PASS / FLAG
+  FINDING : <confirms all 5 axes graded for all 3 branches, or
+             flags which axis / branch is missing>
+  <if FLAG>
+  ACTION  : Re-execute MSG 3 — <specific requirement>
+
+  CHK-04 | Selected branch refined | SEQ target: MSG 4
+  RESULT  : PASS / FLAG
+  FINDING : <confirms refinement present and gaps resolved, or flags
+             what is missing from the refinement>
+  <if FLAG>
+  ACTION  : Re-execute MSG 4 — <specific requirement>
+
+  CHK-05 | Cross-branch scan complete | SEQ target: MSG 4
+  RESULT  : PASS / FLAG
+  FINDING : <confirms both non-selected branches scanned with
+             COMPAT + COST + VERDICT, or flags missing entries>
+  <if FLAG>
+  ACTION  : Re-execute MSG 4 — <specific requirement>
+
+  CHK-06 | No logic contradiction | SEQ target: <earliest offending msg>
+  RESULT  : PASS / FLAG
+  FINDING : <confirms internal consistency across unit, or describes
+             the contradiction and which messages conflict>
+  <if FLAG>
+  ACTION  : Re-execute MSG <n> — <specific requirement>
+
+  CHK-07 | Word count delta ≤ 5% | SEQ target: —
+  RESULT  : PASS / FLAG
+  FINDING : <reports delta from RECEIVE — pass if ≤5%, flag if >5%>
+  <if FLAG>
+  ACTION  : Notify user — word count discrepancy requires review
+             Delta: <n> words / <pct>% above threshold
+
+  ── ANALYZE SUMMARY ─────────────────────────────────
+  CHECKS PASSED : <n>/7
+  CHECKS FLAGGED: <n>/7
+  <if any FLAG>
+  FLAGS         : CHK-<id>, CHK-<id>, ...
+  SEQ TARGETS   : MSG <n>, MSG <n>, ...
+
+  ─────────────────────────────────────────────────────
+  awaiting → [next]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MSG 3 — VERDICT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER      : User sends "next"
+STATE HEADER : [STATE: AUDITING | PROTO: PROTO-AU-EX | SEQ: 3/3 | SYNC: <status>]
+
+EXECUTION:
+  1. Aggregate ANALYZE results
+  2. If all 7 checks PASS → emit GO
+  3. If any check FLAG → emit CORRECT with full patch target list
+  4. Emit authoritative word count to SYS1 regardless of verdict
+  5. Emit signal to RTR (PASS or FLAG)
+
+VERDICT = GO:
+  • All checks passed
+  • Unit closed
+  • Signals emitted
+
+VERDICT = CORRECT:
+  • One or more checks flagged
+  • Patch targets listed with required actions
+  • User selects response: retry / override / break
+  • Unit held open pending user instruction
+
+OUTPUT FORMAT — GO:
+
+  ══ VERDICT: GO ═════════════════════════════════════
+
+  UNIT     : <id>
+  CHECKS   : 7/7 PASS
+  STATUS   : COMPLETE
+
+  ══ SIGNALS EMITTED ═════════════════════════════════
+  → RTR    : PASS | UNIT: <id>
+  → SYS1   : AUTHORITATIVE WORD COUNT: <n>
+
+  ══ UNIT CLOSED ═════════════════════════════════════
+  UNIT: <id> | SEQ: 3/3 | STATUS: COMPLETE
+
+OUTPUT FORMAT — CORRECT:
+
+  ══ VERDICT: CORRECT ════════════════════════════════
+
+  UNIT     : <id>
+  CHECKS   : <n>/7 PASS | <n> FLAG
+
+  PATCH TARGETS:
+  ┌────────────────────────────────────────────────────┐
+  │ CHK-<id> | SEQ: MSG <n>                           │
+  │ FINDING  : <exact issue>                           │
+  │ ACTION   : <what must change on re-execution>      │
+  ├────────────────────────────────────────────────────┤
+  │ CHK-<id> | SEQ: MSG <n>                           │
+  │ FINDING  : <exact issue>                           │
+  │ ACTION   : <what must change on re-execution>      │
+  └────────────────────────────────────────────────────┘
+
+  ══ SIGNALS EMITTED ═════════════════════════════════
+  → RTR    : FLAG | UNIT: <id> | TARGETS: MSG <n>, MSG <n>
+  → SYS1   : AUTHORITATIVE WORD COUNT: <n>
+
+  ══ UNIT HELD — AWAITING USER INSTRUCTION ═══════════
+  awaiting → [retry MSG <n>] [override — accept as-is] [break]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PATCH LOOP RE-ENTRY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When user dispatches retry and patched SEQ is resubmitted:
+
+  • Audit re-enters at MSG 2 (ANALYZE)
+  • MSG 1 (RECEIVE) not repeated unless structural integrity lost
+  • Re-analysis note emitted at top of MSG 2:
+
+  [PATCH LOOP | UNIT: <id> | RETRY: <n> | RE-EVALUATING: CHK-<id>, ...]
+  Checks not under re-evaluation carry forward as PASS.
+
+  • MSG 3 (VERDICT) re-issued after re-analysis
+  • Loop continues until GO or user overrides
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUDIT READY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGISTERED    : PROTO-AU-EX v0.1
+PAIR          : PROTO-EX (TOT Execution)
+SPLIT         : 3 | MANUAL ADVANCE
+PASSIVE INT   : ACTIVE — critical flags only
+PATCH LOOP    : User-invoked | re-enters at MSG 2
+STATUS        : PENDING index registration
+
+[MSG_WORDS: 1021 | TOTAL: <carry from last> | SYNC: CLEAR]
+[UNIT: — | CHAIN: NO | CHAIN_POS: — | SEQ: —]
