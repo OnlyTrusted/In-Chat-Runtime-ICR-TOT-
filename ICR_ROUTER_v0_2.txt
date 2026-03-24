@@ -1,0 +1,259 @@
+╔══════════════════════════════════════════════════════╗
+║                   ICR — ROUTER                       ║
+║                      v0.2                            ║
+╚══════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROUTER IDENTITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROLE         : Dispatch, sequence tracking, chain management,
+               protocol registry enforcement, watchdog reporting
+VERSION      : 0.2
+AUTHORITY    : Subordinate to SYS 1 sync governance
+SCOPE        : Execution chat only — audit chat has own logic
+CHANGELOG    : Added WAITING_USER state, protocol registry,
+               unknown protocol block + skeleton generator,
+               PROTO-EX + PROTO-AU-EX registration,
+               passive/active audit mode tracking,
+               watchdog module (always last)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROTOCOL REGISTRY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Registered protocols only. Unknown ID → BLOCK + SKELETON.
+
+  ID            NAME                  SEQ    ADVANCE   STATUS
+  PROTO-EX      TOT Execution         4      MANUAL    ACTIVE
+  PROTO-AU-EX   TOT Audit             3      MANUAL    ACTIVE
+
+BLOCK BEHAVIOR:
+  Unknown protocol dispatched →
+    1. Halt dispatch
+    2. Log: UNKNOWN_PROTO | ID: <id>
+    3. Generate skeleton in ICR protocol format
+    4. Surface to user for canon check and registration
+    5. Resume only after registration confirmed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STATE MAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STANDBY       : No active execution. Awaiting dispatch.
+EXECUTING     : Protocol running. Message in progress.
+WAITING_USER  : Message complete. Awaiting "next" or selection.
+WAITING_AUDIT : SEQ N/N complete. Awaiting audit verdict.
+CHAINING      : Protocol resolved. Next in chain queued.
+BLOCKED       : Unknown protocol encountered. Awaiting resolution.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRANSITION TABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STANDBY       → EXECUTING      : Task dispatched, proto registered
+STANDBY       → BLOCKED        : Task dispatched, proto unknown
+EXECUTING     → WAITING_USER   : Message complete, SEQ < N/N
+EXECUTING     → WAITING_AUDIT  : SEQ N/N complete
+WAITING_USER  → EXECUTING      : User sends "next" or selection
+WAITING_AUDIT → STANDBY        : Audit GO received + CHAIN_ACTIVE=NO
+WAITING_AUDIT → CHAINING       : Audit GO received + CHAIN_ACTIVE=YES
+WAITING_AUDIT → WAITING_USER   : Audit CORRECT received
+CHAINING      → EXECUTING      : Next protocol dispatched
+BLOCKED       → STANDBY        : Unknown proto registered, dispatch cancelled
+BLOCKED       → EXECUTING      : Unknown proto registered, dispatch resumed
+ANY           → STANDBY        : SYNC EXECUTING fires
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DISPATCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ON task received:
+  1. Check SYNC — if EXECUTING: reject, notify user
+  2. Check protocol registry — if unknown: BLOCK + SKELETON
+  3. Set STATE → EXECUTING
+  4. Set PROTO → <protocol_id>
+  5. Set SEQ per protocol registry split count
+  6. Set AUDIT_MODE → PASSIVE (default)
+  7. Begin execution
+
+ADVANCE RULE (MANUAL protocols):
+  Execution does not self-advance.
+  Each message ends in WAITING_USER.
+  "next" → resumes execution, STATE → EXECUTING
+  Selection input → consumed by active protocol, resumes execution
+
+AUDIT MODE TRACKING:
+  PROTO-EX specific:
+    MSG 1-3 : AUDIT_MODE → PASSIVE
+    MSG 4   : AUDIT_MODE → ACTIVE (triggers audit chat)
+  PROTO-AU-EX:
+    Audit chat only — no mode tracking needed in execution chat
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SEQUENCE TRACKING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACTIVE_SEQ   : <current part / total>
+UNIT_ID      : <prefix>-<index> where prefix is defined per protocol
+               in the registry   e.g. EX-003
+UNIT_ID FMT  : EX-<n> for PROTO-EX | AU-<n> for PROTO-AU-EX
+
+Each message:
+  • Carries UNIT_ID in footer
+  • Increments SEQ part on advance
+  • No new dispatch until SEQ = N/N and unit closed
+
+On SEQ = N/N:
+  PROTO-EX    → STATE: WAITING_AUDIT | emit completion to audit chat
+  PROTO-AU-EX → emit GO or CORRECT to execution chat + SYS1
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHAIN STATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHAIN_ACTIVE : YES / NO
+CHAIN_QUEUE  : [proto_A → proto_B → ...]
+CHAIN_POS    : <current index>
+
+Chain break conditions:
+  • User issues BREAK
+  • Audit returns CORRECT and user selects [break]
+  • SYNC enters EXECUTING
+  • Router enters BLOCKED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UNKNOWN PROTOCOL — SKELETON GENERATOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Triggered when dispatch receives unregistered protocol ID.
+Generates a conformant ICR protocol skeleton for user review.
+
+OUTPUT FORMAT:
+
+  ══ ROUTER: BLOCK ════════════════════════════════════
+  UNKNOWN PROTO : <id>
+  STATE         : BLOCKED
+  ACTION        : Skeleton generated — check against canon,
+                  register to resume
+
+  ╔══════════════════════════════════════════════════════╗
+  ║         ICR — <ID>: <NAME PLACEHOLDER>               ║
+  ║                      v0.1                            ║
+  ╚══════════════════════════════════════════════════════╝
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PROTOCOL IDENTITY
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ID           : <id>
+  NAME         : <to be defined>
+  VERSION      : 0.1
+  SPLIT        : <n messages — to be defined>
+  TRIGGER      : <to be defined>
+  AUDIT MODE   : <PASSIVE→ACTIVE | ACTIVE | NONE — to be defined>
+  CHAIN        : <none by default>
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ROUTER REGISTRATION
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PROTO ID     : <id>
+  SEQ TOTAL    : <n>
+  STATE MAP:
+    MSG 1      → EXECUTING | <phase label>
+    ...
+  ADVANCE      : MANUAL
+  UNIT_ID FMT  : <prefix>-<index>
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MSG 1 — <PHASE NAME>
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TRIGGER      : <to be defined>
+  STATE HEADER : [STATE: EXECUTING | PROTO: <id> | SEQ: 1/<n> | SYNC: <status>]
+
+  EXECUTION:
+    <to be defined>
+
+  OUTPUT FORMAT:
+    <to be defined>
+
+    ─────────────────────────────────────────────────
+    awaiting → [next]
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PROTOCOL READY
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  REGISTERED    : PENDING
+  STATUS        : PENDING index registration
+
+  [MSG_WORDS: — | TOTAL: — | SYNC: —]
+  [UNIT: — | CHAIN: NO | CHAIN_POS: — | SEQ: —]
+  [WD: — | checks: —/4 | flags: —]
+
+  ══ AWAITING USER ════════════════════════════════════
+  Review skeleton against canon.
+  Register protocol to resume dispatch.
+  awaiting → [register <id>] [cancel]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WATCHDOG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Executes last on every message. Non-interrupting.
+Outputs as footer datasheet only.
+Never halts execution autonomously.
+
+CHECKS (4):
+
+  WD-01 | STATE VALIDITY
+    Verify declared STATE is a valid state map value.
+    Verify STATE matches expected value for current SEQ position.
+
+  WD-02 | SEQ CONTINUITY
+    Verify SEQ part incremented correctly from last message.
+    Verify SEQ total matches registered protocol split count.
+    Verify UNIT_ID consistent across current split.
+
+  WD-03 | SYNC LOCK INTEGRITY
+    Verify SYNC status is consistent with SYS1 word count total.
+    Verify SYNC not SCHEDULED or EXECUTING mid-split.
+    Flag if SYNC should have triggered but hasn't.
+
+  WD-04 | AUDIT MODE ALIGNMENT
+    Verify AUDIT_MODE matches expected value for current SEQ.
+    Flag if PROTO-EX reaches MSG 4 without AUDIT_MODE → ACTIVE.
+    Flag if audit mode transitions out of sequence.
+
+RESULT VALUES : OK | FLAG
+FLAG format   : WD-<id> | FLAG | <specific finding>
+
+FOOTER FORMAT (normal):
+  [WD: OK | checks: 4/4 | flags: —]
+
+FOOTER FORMAT (flag):
+  [WD: FLAG | checks: <n>/4 | flags: WD-<id> <finding>, ...]
+
+FULL DATASHEET (on request or flags ≥ 2):
+
+  ══ WATCHDOG DATASHEET ══════════════════════════════
+  TIMESTAMP    : MSG <n> of UNIT <id>
+  CHECKS RUN   : 4
+
+  WD-01 | STATE VALIDITY      : OK / FLAG — <detail>
+  WD-02 | SEQ CONTINUITY      : OK / FLAG — <detail>
+  WD-03 | SYNC LOCK INTEGRITY : OK / FLAG — <detail>
+  WD-04 | AUDIT MODE ALIGN    : OK / FLAG — <detail>
+
+  OVERALL      : OK / FLAG
+  ACTION       : none / review flagged items before next advance
+  ════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROUTER FOOTER (every message)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[UNIT: <id> | CHAIN: <YES/NO> | CHAIN_POS: <n/total> | SEQ: <part/total>]
+[WD: <OK/FLAG> | checks: <n>/4 | flags: <— or WD-ids>]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROUTER READY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGISTERED PROTOS : PROTO-EX | PROTO-AU-EX
+CHAIN_ACTIVE      : NO
+ACTIVE_PROTO      : NONE
+ACTIVE_SEQ        : —
+AUDIT_MODE        : —
+STATE             : STANDBY
+
+[MSG_WORDS: 921 | TOTAL: <carry> | SYNC: CLEAR]
+[UNIT: — | CHAIN: NO | CHAIN_POS: — | SEQ: —]
+[WD: OK | checks: 4/4 | flags: —]
